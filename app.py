@@ -10,7 +10,7 @@ uploaded = st.file_uploader("엑셀 파일 업로드 (.xlsx)", type=["xlsx"])
 gap_days = st.slider("공백 기준 (일)", min_value=30, max_value=1000, value=365, step=30,
                      help="이 기간 이상 주문이 없다가 주사기를 주문한 병원만 표시")
 
-METRO = {'서울', '경기', '인천'}  # 수도권: 지역2(구/시)만 표시, 지방: 지역1만 표시
+METRO = {'서울', '경기', '인천'}
 
 def format_region(r1, r2):
     if pd.isna(r1):
@@ -19,18 +19,23 @@ def format_region(r1, r2):
     if r1 in METRO:
         if pd.notna(r2):
             r2 = str(r2).strip()
-            # 시 뒤 '시' 제거: 수원시->수원, 구는 그대로(금천구->금천)
-            r2 = r2.replace('시', '').replace('구', '') if r2.endswith('시') or r2.endswith('구') else r2
+            if r2.endswith('시') or r2.endswith('구'):
+                r2 = r2[:-1]
             return r2
         return r1
-    return r1  # 지방은 시도명만
+    return r1
+
+def fmt_won(val):
+    if pd.isna(val):
+        return '-'
+    return f"{int(val):,}원"
 
 if uploaded:
     df = pd.read_excel(uploaded, header=0)
     df['매출일_date'] = pd.to_datetime(df['매출일(배송완료일)'], errors='coerce')
 
     direct = df[df['유통'] == '직거래'].copy()
-    syringe_mask = direct['제품명'].str.contains('Syringe', case=False, na=False)
+    syringe_mask = direct['제품명'].str.contains('Syringe|주사기', case=False, na=False)
     syringe_hospitals = direct[syringe_mask]['거래처명'].unique()
 
     results = []
@@ -41,7 +46,6 @@ if uploaded:
 
         first_syringe = syringe_data['매출일_date'].min()
 
-        # 2026년 4월 이후 첫 주문만
         if pd.isna(first_syringe) or first_syringe < pd.Timestamp('2026-04-01'):
             continue
 
@@ -62,6 +66,13 @@ if uploaded:
             last_product = None
             gap = None
 
+        recent = hosp_data[hosp_data['매출일_date'] >= pd.Timestamp('2026-04-01')]
+        non_syringe_recent = recent[~syringe_mask[recent.index]]
+        other_products = non_syringe_recent['제품명'].unique().tolist() if len(non_syringe_recent) > 0 else []
+
+        total_all = hosp_data['매출액(vat 제외)'].sum()
+        total_recent = recent['매출액(vat 제외)'].sum()
+
         r1 = hosp_data['지역1'].dropna().iloc[0] if '지역1' in hosp_data.columns and len(hosp_data['지역1'].dropna()) > 0 else None
         r2 = hosp_data['지역2'].dropna().iloc[0] if '지역2' in hosp_data.columns and len(hosp_data['지역2'].dropna()) > 0 else None
         manager = hosp_data['담당자'].dropna().iloc[0] if '담당자' in hosp_data.columns and len(hosp_data['담당자'].dropna()) > 0 else ''
@@ -72,6 +83,9 @@ if uploaded:
             '담당자': manager,
             '주사기 첫주문일': first_syringe.strftime('%Y-%m-%d') if pd.notna(first_syringe) else '',
             '주문 주사기': ', '.join(syringe_products),
+            '동반 주문 제품': ', '.join(other_products) if other_products else '(주사기만 주문)',
+            '이번달 매출(VAT제외)': total_recent,
+            '누적 매출(VAT제외)': total_all,
             '직전 마지막주문일': last_before.strftime('%Y-%m-%d') if last_before else '(기록없음)',
             '직전 마지막제품': last_product if last_product else '(기록없음)',
             '공백일수': gap,
@@ -87,19 +101,37 @@ if uploaded:
 
     with tab1:
         comeback = result_df[result_df['공백일수'] >= gap_days].sort_values('공백일수', ascending=False).reset_index(drop=True)
-        st.metric("해당 병원 수", f"{len(comeback)}개")
-        st.dataframe(comeback.rename(columns={'공백일수': '공백일수(일)'}), use_container_width=True, hide_index=True)
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("해당 병원 수", f"{len(comeback)}개")
+        col2.metric("이번달 합산 매출", fmt_won(comeback['이번달 매출(VAT제외)'].sum()))
+        col3.metric("누적 합산 매출", fmt_won(comeback['누적 매출(VAT제외)'].sum()))
+
+        display = comeback.copy()
+        display['이번달 매출(VAT제외)'] = display['이번달 매출(VAT제외)'].apply(fmt_won)
+        display['누적 매출(VAT제외)'] = display['누적 매출(VAT제외)'].apply(fmt_won)
+        display = display.rename(columns={'공백일수': '공백일수(일)'})
+
+        st.dataframe(display, use_container_width=True, hide_index=True, height=36 * len(comeback) + 38)
         csv = comeback.to_csv(index=False, encoding='utf-8-sig')
         st.download_button("CSV 다운로드", csv, f"재개병원_{gap_days}일이상.csv", "text/csv")
 
     with tab2:
         new_hosp = result_df[result_df['직전 마지막주문일'] == '(기록없음)'].reset_index(drop=True)
         st.metric("신규 병원 수", f"{len(new_hosp)}개")
-        st.dataframe(new_hosp[['거래처명', '지역', '담당자', '주사기 첫주문일', '주문 주사기']], use_container_width=True, hide_index=True)
+        st.dataframe(
+            new_hosp[['거래처명', '지역', '담당자', '주사기 첫주문일', '주문 주사기', '동반 주문 제품', '이번달 매출(VAT제외)']].assign(
+                **{'이번달 매출(VAT제외)': new_hosp['이번달 매출(VAT제외)'].apply(fmt_won)}
+            ),
+            use_container_width=True, hide_index=True, height=36 * len(new_hosp) + 38
+        )
 
     with tab3:
         st.metric("주사기 주문 병원 전체 (2026.04~)", f"{len(result_df)}개")
-        st.dataframe(result_df.sort_values('공백일수', ascending=False).reset_index(drop=True), use_container_width=True, hide_index=True)
+        display3 = result_df.sort_values('공백일수', ascending=False).reset_index(drop=True).copy()
+        display3['이번달 매출(VAT제외)'] = display3['이번달 매출(VAT제외)'].apply(fmt_won)
+        display3['누적 매출(VAT제외)'] = display3['누적 매출(VAT제외)'].apply(fmt_won)
+        st.dataframe(display3, use_container_width=True, hide_index=True, height=36 * len(result_df) + 38)
 
 else:
     st.info("엑셀 파일을 업로드하면 분석이 시작됩니다.")
