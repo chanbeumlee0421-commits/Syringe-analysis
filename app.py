@@ -77,8 +77,8 @@ if uploaded:
                 .apply(lambda r: f"{r['제품명']} ({r['매출수량']}개)", axis=1)
                 .tolist()
             )
-else:
-    other_products = []
+        else:
+            other_products = []
 
         total_all = hosp_data['매출액(vat 제외)'].sum()
         total_recent = recent['매출액(vat 제외)'].sum()
