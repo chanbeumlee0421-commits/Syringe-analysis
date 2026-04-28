@@ -67,7 +67,8 @@ if uploaded:
             gap = None
 
         recent = hosp_data[hosp_data['매출일_date'] >= pd.Timestamp('2026-04-01')]
-        non_syringe_recent = recent[~syringe_mask[recent.index]]
+        insulin_mask = recent['제품명'].str.contains('INSULIN', case=False, na=False)
+        non_syringe_recent = recent[~syringe_mask[recent.index] & ~insulin_mask]
         if len(non_syringe_recent) > 0:
             other_products = (
                 non_syringe_recent.groupby('제품명')['매출수량']
