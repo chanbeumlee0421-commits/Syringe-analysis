@@ -64,6 +64,7 @@ with st.sidebar:
 @st.cache_data
 def analyze(file_bytes, gap_threshold, kws):
     df = pd.read_excel(BytesIO(file_bytes))
+    st.write(df.columns.tolist())
     df['매출일_date'] = pd.to_datetime(df['매출일(배송완료일)'], errors='coerce')
 
     pattern      = '|'.join(kws)
