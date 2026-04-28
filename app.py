@@ -35,7 +35,7 @@ if uploaded:
     df['매출일_date'] = pd.to_datetime(df['매출일(배송완료일)'], errors='coerce')
 
     direct = df[df['유통'] == '직거래'].copy()
-    syringe_mask = direct['제품명'].str.contains('Syringe|주사기', case=False, na=False)
+    syringe_mask = direct['제품명'].str.contains('Syringe|주사기', case=False, na=False) & ~direct['제품명'].str.contains('INSULIN', case=False, na=False)
     syringe_hospitals = direct[syringe_mask]['거래처명'].unique()
 
     results = []
