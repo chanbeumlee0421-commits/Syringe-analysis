@@ -104,8 +104,7 @@ if uploaded:
 
         col1, col2, col3 = st.columns(3)
         col1.metric("해당 병원 수", f"{len(comeback)}개")
-        col2.metric("이번달 합산 매출", fmt_won(comeback['이번달 매출(VAT제외)'].sum()))
-        col3.metric("누적 합산 매출", fmt_won(comeback['누적 매출(VAT제외)'].sum()))
+
 
         display = comeback.copy()
         display['이번달 매출(VAT제외)'] = display['이번달 매출(VAT제외)'].apply(fmt_won)
