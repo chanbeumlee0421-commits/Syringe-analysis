@@ -103,10 +103,9 @@ if uploaded:
 
     result_df = pd.DataFrame(results)
 
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2 = st.tabs([
         f"공백 {gap_days}일 이상 재개 병원",
         "이력없는 신규 병원",
-        "전체 주사기 병원"
     ])
 
     with tab1:
@@ -134,13 +133,6 @@ if uploaded:
             ),
             use_container_width=True, hide_index=True, height=36 * len(new_hosp) + 38
         )
-
-    with tab3:
-        st.metric("주사기 주문 병원 전체 (2026.04~)", f"{len(result_df)}개")
-        display3 = result_df.sort_values('공백일수', ascending=False).reset_index(drop=True).copy()
-        display3['이번달 매출(VAT제외)'] = display3['이번달 매출(VAT제외)'].apply(fmt_won)
-        display3['누적 매출(VAT제외)'] = display3['누적 매출(VAT제외)'].apply(fmt_won)
-        st.dataframe(display3, use_container_width=True, hide_index=True, height=36 * len(result_df) + 38)
 
 else:
     st.info("엑셀 파일을 업로드하면 분석이 시작됩니다.")
