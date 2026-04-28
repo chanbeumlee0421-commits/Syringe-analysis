@@ -68,7 +68,17 @@ if uploaded:
 
         recent = hosp_data[hosp_data['매출일_date'] >= pd.Timestamp('2026-04-01')]
         non_syringe_recent = recent[~syringe_mask[recent.index]]
-        other_products = non_syringe_recent['제품명'].unique().tolist() if len(non_syringe_recent) > 0 else []
+        if len(non_syringe_recent) > 0:
+            other_products = (
+                non_syringe_recent.groupby('제품명')['매출수량']
+                .sum()
+                .apply(lambda x: int(x))
+                .reset_index()
+                .apply(lambda r: f"{r['제품명']} ({r['매출수량']}개)", axis=1)
+                .tolist()
+            )
+else:
+    other_products = []
 
         total_all = hosp_data['매출액(vat 제외)'].sum()
         total_recent = recent['매출액(vat 제외)'].sum()
